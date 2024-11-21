@@ -1,13 +1,12 @@
 #!/bin/bash
-# Check if we're in a git repository
-if [ ! -d ".git" ]; then
-    echo "Not a git repository. Run this from a git repository root."
-    exit 1
-fi
-# Create hooks directory
-mkdir -p .git/hooks
-# Create pre-commit hook
-cat > .git/hooks/pre-commit << 'HOOK'
+
+# Create git templates directory
+mkdir -p ~/.git-templates/hooks
+
+# Function to create hook
+create_hook() {
+    local hook_path="$1"
+    cat > "$hook_path" << 'HOOK'
 #!/bin/sh
 # Check if Gitleaks is installed
 if ! command -v gitleaks >/dev/null 2>&1; then
@@ -27,6 +26,17 @@ if [ $? -ne 0 ]; then
 fi
 echo "***** Gitleaks check completed successfully *****"
 HOOK
-# Make hook executable
-chmod +x .git/hooks/pre-commit
-echo "✔ Gitleaks pre-commit hook installed!"
+    chmod +x "$hook_path"
+}
+
+# Set up git template
+create_hook ~/.git-templates/hooks/pre-commit
+git config --global init.templateDir ~/.git-templates
+
+# If in a git repository, set up hook directly
+if [ -d ".git" ]; then
+    create_hook ".git/hooks/pre-commit"
+    echo "✔ Gitleaks pre-commit hook installed in current repository!"
+fi
+
+echo "✔ Gitleaks template installed for new repositories!"
