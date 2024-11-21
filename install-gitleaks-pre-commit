@@ -2,13 +2,18 @@
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m'
+
+# Create git templates directory
+mkdir -p ~/.git-templates/hooks
 
 # Create hook in given directory
 create_hook() {
-    mkdir -p "$1/hooks"  # Create hooks directory if it doesn't exist
-    cat > "$1/hooks/pre-commit" << 'HOOK'
+    local hook_path="$1"
+    cat > "$hook_path" << 'HOOK'
 #!/bin/sh
+# Check if Gitleaks is installed
 if ! command -v gitleaks >/dev/null 2>&1; then
     echo "Gitleaks is not installed. Please install it to proceed."
     if [ "$(uname)" = "Darwin" ]; then
@@ -18,6 +23,7 @@ if ! command -v gitleaks >/dev/null 2>&1; then
     fi
     exit 1
 fi
+# Run Gitleaks on staged changes
 gitleaks git --staged -v
 if [ $? -ne 0 ]; then
     echo "Gitleaks detected sensitive information. Please fix before committing."
@@ -25,29 +31,41 @@ if [ $? -ne 0 ]; then
 fi
 echo "***** Gitleaks check completed successfully *****"
 HOOK
-    chmod +x "$1/hooks/pre-commit"
+    chmod +x "$hook_path"
 }
 
-# Find and update repositories
+# Set up git template
+create_hook ~/.git-templates/hooks/pre-commit
+git config --global init.templateDir ~/.git-templates
+echo "${GREEN}✔ Gitleaks template installed for new repositories!${NC}"
+
+# If in a git repository, set up hook directly
+if [ -d ".git" ]; then
+    create_hook ".git/hooks/pre-commit"
+    echo "${GREEN}✔ Gitleaks pre-commit hook installed in current repository!${NC}"
+fi
+
 find_and_update_repos() {
     [ ! -d "$1" ] && echo "${YELLOW}Directory not found: $1${NC}" && return 1
     echo "${YELLOW}Searching in: $1${NC}"
     find "$1" -type d -name ".git" 2>/dev/null | while read gitdir; do
-        create_hook "$gitdir"
+        create_hook "$gitdir/hooks/pre-commit"
         echo "${GREEN}✔ Installed in: $(dirname "$gitdir")${NC}"
     done
 }
 
-case "$1" in
-    "all")
-        find_and_update_repos "$HOME/projects"
-        find_and_update_repos "$HOME/workspace"
-        find_and_update_repos "$HOME/repos"
-        find_and_update_repos "$HOME/Documents"
-        ;;
-    *)
-        [ -z "$1" ] && echo "Usage: curl ... | sh -s all  # or  curl ... | sh -s ~/path" && exit 1
-        find_and_update_repos "$1"
-        ;;
-esac
-echo "${GREEN}✔ Update complete!${NC}"
+# Handle additional directories if specified
+if [ ! -z "$1" ]; then
+    case "$1" in
+        "all")
+            find_and_update_repos "$HOME/projects"
+            find_and_update_repos "$HOME/workspace"
+            find_and_update_repos "$HOME/repos"
+            find_and_update_repos "$HOME/Documents"
+            ;;
+        *)
+            find_and_update_repos "$1"
+            ;;
+    esac
+    echo "${GREEN}✔ Update complete!${NC}"
+fi
