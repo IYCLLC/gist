@@ -1,0 +1,32 @@
+#!/bin/bash
+# Check if we're in a git repository
+if [ ! -d ".git" ]; then
+    echo "Not a git repository. Run this from a git repository root."
+    exit 1
+fi
+# Create hooks directory
+mkdir -p .git/hooks
+# Create pre-commit hook
+cat > .git/hooks/pre-commit << 'HOOK'
+#!/bin/sh
+# Check if Gitleaks is installed
+if ! command -v gitleaks >/dev/null 2>&1; then
+    echo "Gitleaks is not installed. Please install it to proceed."
+    if [ "$(uname)" = "Darwin" ]; then
+        echo "  brew install gitleaks"
+    else
+        echo "  https://github.com/gitleaks/gitleaks#installing"
+    fi
+    exit 1
+fi
+# Run Gitleaks on staged changes
+gitleaks git --staged -v
+if [ $? -ne 0 ]; then
+    echo "Gitleaks detected sensitive information. Please fix before committing."
+    exit 1
+fi
+echo "***** Gitleaks check completed successfully *****"
+HOOK
+# Make hook executable
+chmod +x .git/hooks/pre-commit
+echo "✔ Gitleaks pre-commit hook installed!"
